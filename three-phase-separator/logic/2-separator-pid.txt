@@ -1,0 +1,109 @@
+(* Separator PID Loops *)
+
+(* Pressure PID *)
+
+IF Press_Enable THEN
+
+    Press_Error := Sep_Pressure - Sep_PressureSP;
+
+    Press_Derivative := Press_Error - Press_LastError;
+
+    (* PID gains: Kp=2.0 Ki=0.1 Kd=0.5 *)
+    Press_Output := (2.0 * Press_Error) + (0.1 * Press_Integral) + (0.5 * Press_Derivative);
+    IF Press_Output > 100.0 THEN
+        Press_Output := 100.0;
+    ELSIF Press_Output < 0.0 THEN
+        Press_Output := 0.0;
+    END_IF;
+
+    (* Anti-windup: freeze integral when output is saturated against the error *)
+    IF (Press_Output > 0.0 OR Press_Error >= 0.0) AND
+        (Press_Output < 100.0 OR Press_Error <= 0.0) THEN
+        Press_Integral := Press_Integral + (Press_Error * 0.1);
+        IF Press_Integral > 1000.0 THEN
+            Press_Integral := 1000.0;
+        ELSIF Press_Integral < -1000.0 THEN
+            Press_Integral := -1000.0;
+        END_IF;
+    END_IF;
+
+    Press_Output := (2.0 * Press_Error) + (0.1 * Press_Integral) + (0.5 * Press_Derivative);
+    IF Press_Output > 100.0 THEN
+        Press_Output := 100.0;
+    ELSIF Press_Output < 0.0 THEN
+        Press_Output := 0.0;
+    END_IF;
+
+    Press_LastError := Press_Error;
+
+ELSE
+    Press_Error := 0.0;
+    Press_Derivative := 0.0;
+    Press_Integral := 0.0;
+    Press_Output := 0.0;
+    Press_LastError := 0.0;
+END_IF;
+
+(* Oil Level PID *)
+IF OilLevel_Enable THEN
+
+    OilLevel_Error := Sep_OilLevel - Sep_OilLevelSP;
+
+    OilLevel_Derivative := OilLevel_Error - OilLevel_LastError;
+
+    OilLevel_Integral := OilLevel_Integral + (OilLevel_Error * 0.20);
+
+    IF OilLevel_Integral > 1000.0 THEN
+        OilLevel_Integral := 1000.0;
+    ELSIF OilLevel_Integral < -1000.0 THEN
+        OilLevel_Integral := -1000.0;
+    END_IF;
+
+    (* PID gains: Kp=11.0 Ki=0.20 Kd=0.10 *)
+    OilLevel_Output := (11.0 * OilLevel_Error) + (0.20 * OilLevel_Integral) + (0.10 * OilLevel_Derivative);
+    IF OilLevel_Output > 100.0 THEN
+        OilLevel_Output := 100.0;
+    ELSIF OilLevel_Output < 0.0 THEN
+        OilLevel_Output := 0.0;
+    END_IF;
+
+    OilLevel_LastError := OilLevel_Error;
+ELSE
+    OilLevel_Error := 0.0;
+    OilLevel_Derivative := 0.0;
+    OilLevel_Integral := 0.0;
+    OilLevel_Output := 0.0;
+    OilLevel_LastError := 0.0;
+END_IF;
+
+(* Interface PID *)
+IF Interface_Enable THEN
+
+    Interface_Error := Sep_Interface - Sep_InterfaceSP;
+
+    Interface_Derivative := Interface_Error - Interface_LastError;
+
+    Interface_Integral := Interface_Integral + (Interface_Error * 0.20);
+
+    IF Interface_Integral > 1000.0 THEN
+        Interface_Integral := 1000.0;
+    ELSIF Interface_Integral < -1000.0 THEN
+        Interface_Integral := -1000.0;
+    END_IF;
+
+    (* PID gains: Kp=7.5 Ki=0.20 Kd=0.10 *)
+    Interface_Output := (7.5 * Interface_Error) + (0.20 * Interface_Integral) + (0.10 * Interface_Derivative);
+    IF Interface_Output > 100.0 THEN
+        Interface_Output := 100.0;
+    ELSIF Interface_Output < 0.0 THEN
+        Interface_Output := 0.0;
+    END_IF;
+
+    Interface_LastError := Interface_Error;
+ELSE
+    Interface_Error := 0.0;
+    Interface_Derivative := 0.0;
+    Interface_Integral := 0.0;
+    Interface_Output := 0.0;
+    Interface_LastError := 0.0;
+END_IF;

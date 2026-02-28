@@ -1,0 +1,70 @@
+(* Separator Simulation *)
+
+(* Pressure Simulation *)
+
+(* Pressure rise from inlet feed *)
+IF Sep_InletValve THEN
+    (* Gentler pressure rise in STARTUP to avoid runaway *)
+    IF SepState = 1 THEN
+        Sep_Pressure := Sep_Pressure + 0.05;
+    ELSE
+        Sep_Pressure := Sep_Pressure + 0.30;
+    END_IF;
+END_IF;
+
+(* Gas valve pressure relief *)
+IF Sep_GasValve THEN
+    IF Press_Enable THEN
+        Sep_Pressure := Sep_Pressure - (Press_Output / 100.0) * 1.0;
+    ELSE
+        Sep_Pressure := Sep_Pressure - 1.2;
+    END_IF;
+END_IF;
+
+(* Pressure decay *)
+IF Sep_Pressure > 0.0 THEN
+    Sep_Pressure := Sep_Pressure - (Sep_Pressure / 100.0) * 0.08;
+END_IF;
+
+IF Sep_Pressure < 0.0 THEN
+    Sep_Pressure := 0.0;
+ELSIF Sep_Pressure > 80.0 THEN
+    Sep_Pressure := 80.0;
+END_IF;
+
+(* Oil Level Simulation *)
+IF (SepState = 2) AND Sep_InletValve THEN
+    Sep_OilLevel := Sep_OilLevel + 0.25;
+END_IF;
+
+IF OilLevel_Enable AND (SepState < 3) THEN
+    Sep_OilLevel := Sep_OilLevel - (OilLevel_Output / 100.0) * 0.8;
+END_IF;
+
+IF Sep_OilLevel > 0.0 AND (SepState = 2) AND Sep_OilValve THEN
+    Sep_OilLevel := Sep_OilLevel - (Sep_OilLevel / 100.0) * 0.2;
+ELSIF Sep_OilLevel > 100.0 THEN
+    Sep_OilLevel := 100.0;
+END_IF;
+
+(* Interface Simulation *)
+IF (SepState = 2) AND Sep_InletValve THEN
+    Sep_Interface := Sep_Interface + 0.2;
+END_IF;
+
+IF Interface_Enable AND (SepState < 3) THEN
+    Sep_Interface := Sep_Interface - (Interface_Output / 100.0) * 0.6;
+END_IF;
+
+IF Sep_Interface > 0.0 AND (SepState = 2) AND Sep_WaterValve THEN
+    Sep_Interface := Sep_Interface - (Sep_Interface / 100.0) * 0.2;
+ELSIF Sep_Interface > 100.0 THEN
+    Sep_Interface := 100.0;
+END_IF;
+
+(* Temperature simulation (first-order lag) *)
+IF SepState > 0 THEN
+    Sep_Temperature := Sep_Temperature + ((75.0 + (Sep_Pressure * 0.05)) - Sep_Temperature) * 0.02;
+ELSE
+    Sep_Temperature := Sep_Temperature + (25.0 - Sep_Temperature) * 0.02;
+END_IF;

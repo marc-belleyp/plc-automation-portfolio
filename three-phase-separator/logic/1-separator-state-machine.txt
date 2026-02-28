@@ -1,0 +1,154 @@
+(* Three-Phase Separator State Machine *)
+
+(* Start returns to false if not in IDLE *)
+IF StartSeparator AND (SepState > 0) THEN
+    StartSeparator := FALSE;
+END_IF;
+
+(* Stop has priority over Start *)
+IF StopSeparator THEN
+    StartSeparator := FALSE;
+END_IF;
+
+(* Pressure Protection and Trips *)
+
+(* Trips only evaluated in STARTUP/RUNNING; shutdown state handles sequencing to IDLE *)
+
+(* High pressure trip and high-high pressure trip in RUNNING *)
+IF (SepState = 2) AND (Sep_Pressure > HighPressSP) THEN
+    HighPressAlarm := TRUE;
+
+    (* Both alarms can be tripped in RUNNING *)
+    IF (Sep_Pressure >= HighHighPressSP) THEN
+        HighHighPressAlarm := TRUE;
+        SepFault := TRUE;
+        SepState := 3; (* shutdown *)
+        SepTimer := 0;
+    END_IF;
+END_IF;
+
+(* High-high pressure trip when in STARTUP *)
+IF (SepState = 1) AND (Sep_Pressure > HighHighPressSP) THEN
+    HighHighPressAlarm := TRUE;
+    SepFault := TRUE;
+    SepState := 3; (* shutdown *)
+    SepTimer := 0;
+END_IF;
+
+(* State Machine *)
+
+CASE SepState OF
+
+    0:  (* Idle *)
+        Sep_InletValve := FALSE;
+        Sep_GasValve := FALSE;
+        Sep_OilValve := FALSE;
+        Sep_WaterValve := FALSE;
+
+        Press_Enable := FALSE;
+        OilLevel_Enable := FALSE;
+        Interface_Enable := FALSE;
+
+        SepTimer := 0;
+		
+        IF StartSeparator AND NOT SepFault THEN
+            SepState := 1;
+            StartSeparator := FALSE;
+        ELSE
+            StartSeparator := FALSE;
+        END_IF;
+
+    1:  (* Startup *)
+        Sep_InletValve := TRUE;
+
+        (* Enable pressure control *)
+        Press_Enable := TRUE;
+
+        (* Keep level/interface controls disabled until RUNNING *)
+        OilLevel_Enable := FALSE;
+        Interface_Enable := FALSE;
+
+        (* Prevent nuisance pressure trips *)
+        Sep_GasValve := (Press_Output > ValveCmdThreshold);
+
+        (* Keep liquid outlets closed *)
+        Sep_OilValve := FALSE;
+        Sep_WaterValve := FALSE;
+
+        SepTimer := SepTimer + 1;
+
+        IF SepTimer >= 3000 THEN
+            SepState := 2;
+            SepTimer := 0;
+        END_IF;
+
+    2:  (* Running *)
+        Sep_InletValve := TRUE;
+
+        Press_Enable := TRUE;
+        OilLevel_Enable := TRUE;
+        Interface_Enable := TRUE;
+
+        (* Valve control from controller outputs *)
+        Sep_GasValve := (Press_Output > ValveCmdThreshold);
+        Sep_OilValve := (OilLevel_Output > ValveCmdThreshold);
+        Sep_WaterValve := (Interface_Output > ValveCmdThreshold);
+
+        (* Alarm delay timer *)
+        SepTimer := SepTimer + 1;
+
+        (* Delay prevents nuisance low-oil alarm *)
+        LowOilAlarm := (SepTimer > 1000) AND (Sep_OilLevel < 30.0);
+
+    3:  (* Shutdown *)
+        Sep_InletValve := FALSE;
+
+        Press_Enable := FALSE;
+        OilLevel_Enable := FALSE;
+        Interface_Enable := FALSE;
+
+        (* Shutdown sequencing delays *)
+
+        SepTimer := SepTimer + 1;
+
+        IF SepTimer > 1000 THEN
+            Sep_GasValve := FALSE;
+        END_IF;
+
+        IF SepTimer > 1500 THEN
+            Sep_OilValve := FALSE;
+            Sep_WaterValve := FALSE;
+        END_IF;
+
+        IF SepTimer >= 2000 THEN
+            SepState := 0;
+            SepTimer := 0;
+        END_IF;
+
+END_CASE;
+
+(* Stop and Reset Commands *)
+
+IF StopSeparator THEN
+    IF SepState > 0 THEN
+        Sep_InletValve := FALSE;
+        SepState := 3;
+        SepTimer := 0;
+    END_IF;
+    StopSeparator := FALSE;
+END_IF;
+
+IF ResetSeparator THEN
+    IF SepState = 0 THEN
+        SepFault := FALSE;
+        HighPressAlarm := FALSE;
+        HighHighPressAlarm := FALSE;
+        LowOilAlarm := FALSE;
+
+        Sep_Pressure := 0.0;
+        Sep_OilLevel := 0.0;
+        Sep_Interface := 0.0;
+        Sep_Temperature := 25.0;
+    END_IF;
+    ResetSeparator := FALSE;
+END_IF;
