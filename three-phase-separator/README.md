@@ -76,7 +76,7 @@ Maintains oil level at 70% using a modulating oil discharge valve. Direct-acting
 ### /demo
 Contains:
 * youtube-link.txt  
-  YouTube link to project walkthrough video
+  YouTube link to project walkthrough video.
 
 ***
 
