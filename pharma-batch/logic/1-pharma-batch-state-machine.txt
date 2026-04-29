@@ -1,0 +1,588 @@
+(* ----------------------------------------------------------- *)
+(* Pharma Batch Mixing System                                  *)
+(* Batch State Machine Control Logic                           *)
+(* ISA-88 inspired phase sequencing for mixing process         *)
+(* Handles operator commands, alarms, batch tracking and CIP   *)
+(* ----------------------------------------------------------- *)
+
+(* Request phase transition *)
+NextPhase := Phase;
+
+(* Clamp recipe selection to valid range *)
+IF SelectedRecipe < 1 THEN
+   SelectedRecipe := 1;
+END_IF;
+IF SelectedRecipe > 3 THEN
+   SelectedRecipe := 3;
+END_IF;
+
+(* Load recipe parameters into runtime variables *)
+TargetTemp := Recipe_TargetTemp[SelectedRecipe];
+TargetLevel := Recipe_TargetLevel[SelectedRecipe];
+MixTime := Recipe_MixTime[SelectedRecipe];
+
+(* Detect unrealistic or invalid instrument values *)
+IF (LT_Level < -1.0) OR (LT_Level > 101.0) OR (TT_Temp < -20.0) OR (TT_Temp > 200.0) THEN
+    InternalFault := TRUE;
+END_IF;
+
+(* Track max temperature during active batch phases *)
+IF (Phase >= 1 AND Phase <= 4) AND (TT_Temp > RT_MaxTemp) THEN
+    RT_MaxTemp := TT_Temp;
+END_IF;
+
+(* Track max temperature during CIP *)
+IF (Phase = 5) AND (TT_Temp > RT_CIPMaxTemp) THEN
+    RT_CIPMaxTemp := TT_Temp;
+END_IF;
+
+(* Warning condition: temperature exceeds recipe target by 5 °C *)
+HighTempActive := TT_Temp > (TargetTemp + 5.0);
+
+(* Warning condition: temperature falls 5 °C below recipe target during mixing phase *)
+LowTempActive := (TT_Temp < TargetTemp - 5.0) AND (Phase = 3);
+
+(* Critical safety condition: temperature exceeds recipe target by 10 °C *)
+HighHighTempActive := TT_Temp > (TargetTemp + 10.0);
+
+(* Warning condition: vessel level exceeds 95 % of maximum capacity *)
+HighLevelActive := LT_Level > 95.0;
+
+(* Warning condition: mixing at low liquid levels *)
+LowLevelActive := (Phase = 2 OR Phase = 3) AND (LT_Level < 10.0);
+
+(* Alarm latching logic *)
+
+(* Force fault phase if internal fault occurs during active batch *)
+IF InternalFault THEN
+    IF ((Phase >= 1 AND Phase <= 3) OR (Phase = 4 AND ProductOutletValveCmd)) OR Phase =7 THEN
+	    IF RT_Result = BATCH_NONE THEN
+            RT_Result := BATCH_INTERNAL_FAULT; (* Store batch outcome *)
+		    IF Phase = 7 THEN (* Store last phase of active process *)
+			    RT_LastPhase := PreviousPhase;
+			ELSE
+			    RT_LastPhase := Phase;
+			END_IF;
+        END_IF;
+        NextPhase := 9; (* FAULT PHASE — critical shutdown *)
+    END_IF;
+	IF NOT InternalFaultAlarm THEN
+        RT_AlarmCount := RT_AlarmCount + 1;
+    END_IF;
+	InternalFaultAlarm := TRUE;	
+END_IF;
+
+(* Clear internal fault alarm after temperature returns to normal and operator acknowledgment *)
+IF InternalFaultAck THEN
+    InternalFaultAck := FALSE;
+	IF InternalFaultAlarm AND NOT InternalFault THEN
+        InternalFaultAlarm := FALSE;
+	END_IF;
+END_IF;
+
+(* Latch high temperature alarm *)
+IF HighTempActive THEN
+    IF NOT HighTempAlarm THEN
+        RT_AlarmCount := RT_AlarmCount + 1;
+    END_IF;
+    HighTempAlarm := TRUE;
+END_IF;
+
+(* Clear high temperature alarm after temperature returns to normal and operator acknowledgment *)
+IF HighTempAck THEN
+    HighTempAck := FALSE;
+	IF HighTempAlarm AND NOT HighTempActive THEN
+        HighTempAlarm := FALSE;
+	END_IF;
+END_IF;
+
+(* Latch low temperature alarm *)
+IF LowTempActive THEN
+    IF NOT LowTempAlarm THEN
+        RT_AlarmCount := RT_AlarmCount + 1;
+    END_IF;
+    LowTempAlarm := TRUE;
+END_IF;
+
+(* Clear low temperature alarm after temperature returns to normal and operator acknowledgment *)
+IF LowTempAck THEN
+    LowTempAck := FALSE;
+	IF LowTempAlarm AND NOT LowTempActive THEN
+        LowTempAlarm := FALSE;
+	END_IF;
+END_IF;
+
+(* Latch high-high temperature alarm and transition to fault phase *)
+IF HighHighTempActive THEN
+    IF ((Phase >= 1 AND Phase <= 3) OR (Phase = 4 AND ProductOutletValveCmd)) OR Phase =7 THEN
+	    IF RT_Result = BATCH_NONE THEN
+            RT_Result := BATCH_ABORTED_HIGHHIGHTEMP; (* Store batch outcome *)
+		    IF Phase = 7 THEN (* Store last phase of active process *)
+			    RT_LastPhase := PreviousPhase;
+			ELSE
+			    RT_LastPhase := Phase;
+			END_IF;
+        END_IF;
+        NextPhase := 9; (* FAULT PHASE — critical shutdown *)
+    END_IF;
+	IF NOT HighHighTempAlarm THEN
+        RT_AlarmCount := RT_AlarmCount + 1;
+    END_IF;
+	HighHighTempAlarm := TRUE;	
+END_IF;
+
+(* Clear high-high temperature alarm after temperature returns to normal and operator acknowledgment *)
+IF HighHighTempAck THEN
+    HighHighTempAck := FALSE;
+	IF HighHighTempAlarm AND NOT HighHighTempActive THEN
+        HighHighTempAlarm := FALSE;
+	END_IF;
+END_IF;
+
+(* Latch low level alarm *)
+IF LowLevelActive THEN
+    IF NOT LowLevelAlarm THEN
+        RT_AlarmCount := RT_AlarmCount + 1;
+    END_IF;
+    LowLevelAlarm := TRUE;
+END_IF;
+
+(* Clear low level alarm after level returns to normal and operator acknowledgment *)
+IF LowLevelAck THEN
+    LowLevelAck := FALSE;
+	IF LowLevelAlarm AND NOT LowLevelActive THEN
+        LowLevelAlarm := FALSE;
+	END_IF;
+END_IF;
+
+(* Latch high level alarm *)
+IF HighLevelActive THEN
+    IF NOT HighLevelAlarm THEN
+        RT_AlarmCount := RT_AlarmCount + 1;
+    END_IF;
+    HighLevelAlarm := TRUE;
+END_IF;
+
+(* Clear high level alarm after level returns to normal and operator acknowledgment *)
+IF HighLevelAck THEN
+    HighLevelAck := FALSE;
+	IF HighLevelAlarm AND NOT HighLevelActive THEN
+        HighLevelAlarm := FALSE;
+	END_IF;
+END_IF;
+
+(* Clear hold timeout alarm after operator acknowledgment *)
+IF HoldTimeoutAck THEN
+    HoldTimeoutAck := FALSE;
+	IF HoldTimeoutAlarm THEN
+        HoldTimeoutAlarm := FALSE;
+	END_IF;
+END_IF;
+
+(* Clear fault timeout alarm after operator acknowledgment *)
+IF FaultTimeoutAck THEN
+    FaultTimeoutAck := FALSE;
+	IF FaultTimeoutAlarm THEN
+        FaultTimeoutAlarm := FALSE;
+	END_IF;
+END_IF;
+
+(* Combine all alarms and conditions into fault categories *)
+MinorFaultAlarms := HighTempAlarm OR LowLevelAlarm OR HighLevelAlarm OR LowTempAlarm;
+CriticalFault := HighHighTempActive OR InternalFault;
+MinorFault := HighTempActive OR LowLevelActive OR HighLevelActive OR LowTempActive;
+
+(* General fault flag used by operator interface and permissive logic *)
+GeneralFault := MinorFault OR CriticalFault;
+
+(* Conditions required to start a new batch *)
+StartPermissive := VesselClean AND LT_Level <= 1.0 AND NOT HighHighTempAlarm AND NOT InternalFaultAlarm AND NOT MinorFaultAlarms AND NOT HoldTimeoutAlarm AND NOT FaultTimeoutAlarm AND Phase = 0;
+
+(* Operator command handling *)
+
+(* Start command initiates new batch when permissive conditions are met *)
+IF StartPB THEN
+    StartPB := FALSE;
+	IF StartPermissive THEN
+	
+	    (* Initialize runtime variables for next batch *)
+    
+		ProductValid := TRUE;
+        MinorFaultAccum := 0;
+        MinorFaultPrev := FALSE;
+        HoldAccum := 0;
+        HoldPrev := FALSE;
+        ProcessCompleteFlag := FALSE;
+		BatchTime := 0;
+        BatchID := BatchID + 1;
+        RT_StartTime := SystemTime;
+        RT_MaxTemp := 0.0;
+		RT_CIPMaxTemp := 0.0;
+        RT_AlarmOccurred := FALSE;
+        RT_MixTimeAccum := T#0s;
+		CIP_Timer := T#0s;
+        RT_Result := BATCH_NONE;
+        RT_FillEndLevel := 0.0;
+        RT_HeatEndTemp := 0.0;
+        RT_AlarmCount := 0;
+		RT_CIPCompleted := FALSE;
+		RT_BatchArchived := FALSE;
+
+        NextPhase := 1; (* FILLING PHASE *)
+    END_IF;
+END_IF;
+
+(* Hold command pauses the process during active batch phases by triggering transition to hold phase *)
+IF HoldPB THEN
+    HoldPB := FALSE;
+    IF (Phase >= 1 AND Phase <= 4) AND ProductValid THEN
+        NextPhase := 7; (* HOLD PHASE *)
+    END_IF;
+END_IF;
+
+(* Resume command from hold phase *)
+IF ResumePB THEN
+    ResumePB := FALSE;
+	IF Phase = 7 AND ProductValid AND HoldAccum < MaxHoldTime THEN (* From HOLD PHASE *)
+        NextPhase := PreviousPhase; (* Resume process to previous phase *)
+	END_IF;
+END_IF;
+
+(* Emergency stop command shuts everything down without going through CIP phase *)
+IF EstopPB THEN
+    EstopPB := FALSE;
+	IF (Phase >= 1 AND Phase <= 5) OR Phase = 7 THEN
+        IF RT_Result = BATCH_NONE THEN
+            RT_Result := BATCH_ABORTED_ESTOP; (* Store batch outcome *)
+			IF Phase = 7 THEN (* Store last phase of active process *)
+			    RT_LastPhase := PreviousPhase;
+			ELSE
+			    RT_LastPhase := Phase;
+			END_IF;
+        END_IF;
+      
+	    NextPhase := 8; (* E-STOP PHASE *)
+    END_IF;
+END_IF;
+
+(* Resetting from emergency stop *)
+IF EstopResetPB THEN
+    EstopResetPB := FALSE;
+    IF Phase = 8 THEN
+        IF LT_Level > 1.0 THEN
+            NextPhase := 4; (* DRAINING PHASE *)
+        ELSE
+            NextPhase := 0; (* IDLE PHASE *)
+		END_IF;
+	END_IF;
+END_IF;
+
+(* Abort command sends system to draining phase *)
+IF AbortPB THEN
+    AbortPB := FALSE;
+	IF (Phase >= 1 AND Phase <= 3) OR Phase = 7 THEN
+		IF RT_Result = BATCH_NONE THEN
+        	RT_Result := BATCH_ABORTED; (* Store batch outcome *)
+			IF Phase = 7 THEN (* Store last phase of active process *)
+			    RT_LastPhase := PreviousPhase;
+			ELSE
+			    RT_LastPhase := Phase;
+			END_IF;
+    	END_IF;
+    	
+		ProductValid := FALSE;
+    	NextPhase := 4; (* DRAINING PHASE *)
+    END_IF;
+END_IF;
+
+(* Release command returns system to idle after batch completion *)
+IF ReleasePB THEN
+    ReleasePB := FALSE;
+    IF (Phase = 6) THEN
+        ProcessCompleteFlag := FALSE;
+        NextPhase := 0; (* IDLE PHASE *)
+    END_IF;
+END_IF;
+
+(* Reset command clears alarms and internal faults *)
+IF ResetPB THEN
+    ResetPB := FALSE;
+    HighTempAlarm := FALSE;
+    HighHighTempAlarm := FALSE;
+	LowTempAlarm := FALSE;
+	HighLevelAlarm := FALSE;
+    LowLevelAlarm := FALSE;
+	HoldTimeoutAlarm := FALSE;
+	FaultTimeoutAlarm := FALSE;
+    InternalFaultAlarm := FALSE;
+END_IF;
+
+(* Reset actuator commands before phase logic executes *)
+HeaterCmd := FALSE;
+ProcessInletValveCmd := FALSE;
+CIPInletValveCmd := FALSE;
+MixerCmd := FALSE;
+ProductOutletValveCmd := FALSE;
+WasteOutletValveCmd := FALSE;
+
+(* Phase Definitions *)
+CASE Phase OF
+
+0:  (* Idle phase *)
+
+	TT_Temp := 25.0;
+
+1: (* Filling phase *)
+
+    (* Open fill valve until target level is reached *)
+    ProcessInletValveCmd := TRUE;
+	VesselClean := FALSE;
+
+    (* Transition to heating phase when target level is reached *)
+    IF LT_Level >= TargetLevel THEN
+        RT_FillEndLevel := LT_Level;
+        NextPhase := 2; (* HEATING PHASE *)
+    END_IF;
+
+2: (* Heating phase *)
+
+    IF (TT_Temp < TargetTemp) THEN (* Heat until target temperature reached *)
+        HeaterCmd := TRUE;
+		MixerCmd := TRUE;
+    ELSE
+	    (* Record end temperature and proceed to mixing phase when target temperature is reached *)
+        RT_HeatEndTemp := TT_Temp;
+        NextPhase := 3; (* MIXING PHASE *)
+    END_IF;
+
+3: (* Mixing phase *)
+
+    MixerCmd := TRUE;
+	
+	(* Turn on heater to maintain target temperature while mixing *)
+	IF TT_Temp < TargetTemp THEN
+        HeaterCmd := TRUE;
+    END_IF;
+	
+	IF NOT MinorFault THEN
+        RT_MixTimeAccum := RT_MixTimeAccum + T#100ms; (* Accumulate mixing time *)
+    END_IF;
+
+    (* Transition to draining phase when required mixing time has been reached and record total mixing time *)
+    IF RT_MixTimeAccum >= MixTime THEN
+        NextPhase := 4; (* DRAINING PHASE *)
+    END_IF;
+
+4: (* Draining phase *)
+    IF ProductValid THEN
+        ProductOutletValveCmd := TRUE;
+    ELSE
+	    WasteOutletValveCmd := TRUE;
+	END_IF;
+
+    (* Drain until vessel nearly empty *)
+    IF (LT_Level <= 5.0) THEN 
+	    RT_BatchDuration := BatchTime; (* Record total duration of active batch phases *)
+		CIP_Timer := T#0s; (* Reset CIP timer on entry to Phase 5 (handles re-entry) *)
+        NextPhase := 5; (* CIP PHASE *)
+    END_IF;
+
+5: (* CIP phase *)
+
+    (* Stage 1: Fill with cleaning solution *)
+    IF NOT RT_CIPCompleted THEN (* Prevent filling after CIP completion *)
+	    IF LT_Level < (CIP_FillLevel - 1.0) THEN (* -1.0 to account for oscillations *)
+            CIPInletValveCmd := TRUE;
+        ELSE
+		
+        (* Stage 2: Circulation *)
+        MixerCmd := TRUE;   (* Simulate CIP circulation *)
+        CIP_Timer := CIP_Timer + T#100ms; (* Accumulate CIP circulation duration *)
+        END_IF;
+    END_IF;
+	
+	(* Stage 2: Completion *)
+    IF CIP_Timer >= CIPTime THEN
+        RT_CIPCompleted := TRUE; (* Mark the CIP process as complete *)
+        WasteOutletValveCmd := TRUE;
+    END_IF;
+
+    (* Stage 3: Final drain to near empty *)
+    IF WasteOutletValveCmd AND (LT_Level <= 1.0) THEN
+        VesselClean := RT_CIPCompleted;
+		
+        IF ProductValid THEN
+            NextPhase := 6; (* COMPLETE PHASE *)
+        ELSE
+		    NextPhase := 0; (* Batches that encountered faults skip complete phase *)
+			IF RT_Result <> BATCH_NONE THEN
+			    RT_TerminateRequest := TRUE;
+			END_IF;
+        END_IF;
+    END_IF;
+
+6: (* Complete phase *)
+
+    (* Batch completed successfully *)
+    ProcessCompleteFlag := TRUE;
+    IF RT_Result = BATCH_NONE THEN
+        RT_Result := BATCH_SUCCESS; (* Store batch outcome *)
+		RT_LastPhase := Phase; (* Store last phase of active process *)
+		RT_TerminateRequest := TRUE;
+    END_IF;
+    
+7: (* Hold phase *)
+	
+    (* Process paused by operator. Hold timer continues accumulating duration. *)
+	
+8: (* E-stop phase *)
+
+    ProductValid := FALSE;
+
+9: (* Fault phase *)
+
+	ProductValid := FALSE;
+	
+	(* Transition system to draining or idle *)
+
+	IF NOT VesselClean THEN
+        NextPhase := 4; (* DRAINING PHASE *)
+	ELSE
+	    NextPhase := 0; (* IDLE PHASE *)
+	END_IF;
+
+END_CASE;
+
+(* Equipment protection and safety interlocks *)
+
+(* Disable heater when temperature exceeds allowed limits *)
+IF HighTempActive OR HighHighTempActive THEN
+    HeaterCmd := FALSE;
+END_IF;
+
+(* Prevent overfilling vessel *)
+IF HighLevelActive THEN
+    ProcessInletValveCmd := FALSE;
+	CIPInletValveCmd := FALSE;
+END_IF;
+
+(* Prevent mixer operation at low vessel level to avoid damage *)
+IF MixerCmd AND (LT_Level < 10.0) THEN
+    MixerCmd := FALSE;
+END_IF;
+
+(* Prevent heater operation at low vessel level *)
+IF HeaterCmd AND LT_Level < 20.0 THEN
+    HeaterCmd := FALSE;
+END_IF;
+
+(* Record that at least one alarm occurred during the batch *)
+IF GeneralFault OR HoldTimeoutAlarm OR FaultTimeoutAlarm THEN
+    RT_AlarmOccurred := TRUE;
+END_IF;
+
+(* Track total time spent in hold phase *)
+IF Phase = 7 THEN
+    IF NOT HoldPrev THEN
+        HoldStartTime := BatchTime;
+        HoldPrev := TRUE;
+	ELSE
+        HoldDelta := BatchTime - HoldStartTime;
+        HoldAccum := HoldAccum + HoldDelta;
+        HoldStartTime := BatchTime;
+    END_IF;
+ELSIF HoldPrev THEN
+    HoldPrev := FALSE;
+END_IF;
+
+(* Discard batch and trigger alarm if hold time exceeds allowed limit *)
+IF HoldAccum >= MaxHoldTime AND (RT_Result = BATCH_NONE) THEN
+    ProductValid := FALSE;
+	RT_AlarmCount := RT_AlarmCount + 1;
+    RT_Result := BATCH_DISCARDED_HOLD_TIMEOUT; (* Store batch outcome *)
+	IF Phase = 7 THEN (* Store last phase of active process *)
+		RT_LastPhase := PreviousPhase;
+	ELSE
+		RT_LastPhase := Phase;
+	END_IF;
+	
+    HoldTimeoutAlarm := TRUE;
+    NextPhase := 4; (* DRAINING PHASE *)
+END_IF;
+
+(* Track total duration of minor fault conditions during batch *)
+IF ((Phase >= 1 AND Phase <= 4) OR Phase =7) AND ProductValid AND NOT CriticalFault THEN
+    IF MinorFault AND NOT MinorFaultPrev THEN
+        MinorFaultStartTime := BatchTime;
+        MinorFaultPrev := TRUE;
+    END_IF;
+		
+	IF MinorFaultPrev THEN
+        MinorFaultDelta := BatchTime - MinorFaultStartTime;
+        MinorFaultAccum := MinorFaultAccum + MinorFaultDelta;
+        MinorFaultStartTime := BatchTime;
+		IF NOT MinorFault THEN
+		    MinorFaultPrev := FALSE;
+		END_IF;
+	END_IF;
+END_IF;
+		
+(* Discard batch to protect product quality if fault duration exceeds maximum allowed recovery time *)
+IF MinorFaultAccum >= MaxFaultRecoveryTime AND NOT CriticalFault AND ((Phase >= 1 AND Phase <= 4) OR Phase =7) AND (RT_Result = BATCH_NONE) THEN
+    ProductValid := FALSE;
+	
+	RT_AlarmCount := RT_AlarmCount + 1;
+    RT_Result := BATCH_DISCARDED_FAULT_TIMEOUT; (* Store batch outcome *)
+	IF Phase = 7 THEN (* Store last phase of active process *)
+		RT_LastPhase := PreviousPhase;
+	ELSE
+		RT_LastPhase := Phase;
+	END_IF;
+	
+	FaultTimeoutAlarm := TRUE;
+    NextPhase := 4; (* DRAINING PHASE *)
+END_IF;
+
+(* Archive completed batch data *)
+IF RT_TerminateRequest AND NOT RT_BatchArchived THEN
+    RT_TerminateRequest := FALSE;
+	
+    RT_EndTime := SystemTime; (* Record batch end timestamp *)
+
+    BH_BatchID[HistoryIndex] := BatchID;
+    BH_StartTime[HistoryIndex] := RT_StartTime;
+    BH_EndTime[HistoryIndex] := RT_EndTime;
+	BH_BatchDuration[HistoryIndex] := RT_BatchDuration;
+    BH_TargetTemp[HistoryIndex] := TargetTemp;
+    BH_TargetLevel[HistoryIndex] := TargetLevel;
+    BH_SetMixTime[HistoryIndex] := MixTime;
+    BH_MaxTemp[HistoryIndex] := RT_MaxTemp;
+    BH_ActualMixTime[HistoryIndex] := RT_MixTimeAccum;
+    BH_AlarmOccurred[HistoryIndex] := RT_AlarmOccurred;
+    BH_Result[HistoryIndex] := RT_Result;
+    BH_LastPhase[HistoryIndex] := RT_LastPhase;
+    BH_RecipeID[HistoryIndex] := SelectedRecipe;
+    BH_FillEndLevel[HistoryIndex] := RT_FillEndLevel;
+    BH_HeatEndTemp[HistoryIndex] := RT_HeatEndTemp;
+    BH_CIPMaxTemp[HistoryIndex] := RT_CIPMaxTemp;
+	BH_AlarmCount[HistoryIndex] := RT_AlarmCount;
+    BH_HoldDuration[HistoryIndex] := HoldAccum;
+    BH_CIPCompleted[HistoryIndex] := RT_CIPCompleted;
+	BH_MinorFaultTime[HistoryIndex] := MinorFaultAccum;
+
+    HistoryIndex := HistoryIndex + 1; (* Advance history index *)
+	
+	(* Wrap history index when history buffer full *)
+    IF HistoryIndex >= MAX_BATCH_HISTORY THEN
+        HistoryIndex := 0;
+    END_IF;
+	
+	RT_BatchArchived := TRUE;
+	
+END_IF;
+
+(* Apply requested phase transition and store previous phase for hold/resume functionality *)
+IF NextPhase <> Phase THEN
+    PreviousPhase := Phase;
+    Phase := NextPhase;
+END_IF;

@@ -1,0 +1,34 @@
+(* ----------------------------------------------------------- *)
+(* Pharma Batch Mixing System                                  *)
+(* PID Logic Section                                           *)
+(* PID controllers used by the batch process                   *)
+(* ----------------------------------------------------------- *)
+
+(* Temperature control PID loop for heater power *)
+IF HeaterCmd THEN
+
+    (* Calculate temperature control error *)
+    PID_Error := TargetTemp - TT_Temp;
+
+    (* Integral term over time *)
+    PID_Integral := PID_Integral + (PID_Error * PID_Ki * ScanTime);
+
+    PID_Output := (PID_Kp * PID_Error) + PID_Integral;
+
+    (* Clamp PID output to valid range *)
+    IF PID_Output > 100.0 THEN
+	    PID_Output := 100.0;
+	END_IF;
+    IF PID_Output < 0.0 THEN
+	    PID_Output := 0.0;
+	END_IF;
+
+    HeaterPower := PID_Output;
+
+(* Reset integral when heater command disabled to prevent integral windup *)
+ELSE
+    HeaterPower := 0.0;
+    PID_Integral := 0.0;
+    PID_Error := 0.0;
+	PID_Output := 0.0;
+END_IF;

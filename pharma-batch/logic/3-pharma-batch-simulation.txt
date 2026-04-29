@@ -1,0 +1,46 @@
+(* ----------------------------------------------------------- *)
+(* Pharma Batch Mixing System                                  *)
+(* Process Simulation Section                                  *)
+(* Used for testing without real hardware                      *)
+(* Simulates tank level and temperature dynamics               *)
+(* ----------------------------------------------------------- *)
+
+(* Increment simulated system clock and batch timer *)
+SystemTime := SystemTime + 1;
+
+IF (Phase >= 1 AND Phase <= 4) OR (Phase = 7) THEN
+    BatchTime := BatchTime + 1;
+END_IF;
+
+(* Tank level simulation *)
+IF ProcessInletValveCmd OR CIPInletValveCmd THEN (* Simulated tank level increase during filling *)
+    LT_Level := LT_Level + 0.5; 
+END_IF;
+
+(* Simulated tank level decrease during draining *)
+IF ProductOutletValveCmd or WasteOutletValveCmd THEN
+    LT_Level := LT_Level - 0.7;
+END_IF;
+
+(* Clamp level measurements to valid range for simulation *)
+IF LT_Level < 0.0 AND LT_Level > -1.0 THEN
+    LT_Level := 0.0;
+END_IF;
+
+IF LT_Level < 101.0 AND LT_Level > 100.0 THEN
+    LT_Level := 100.0;
+END_IF;
+
+(* Temperature simulation *)
+IF HeaterCmd THEN (* Simulated heating dynamics *)
+    TT_Temp := TT_Temp + (HeaterPower * 0.003);
+ELSE
+    IF TT_Temp > 25.0 THEN (* Simulated cooling dynamics *)
+        TT_Temp := TT_Temp - 0.05;
+	END_IF;
+END_IF;
+
+(* Clamp temperature measurement to valid minimum for simulation *)
+IF TT_Temp < 20.0 THEN
+    TT_Temp := 20.0;
+END_IF;
