@@ -85,7 +85,7 @@ Contains:
 * separator-p&id.pdf  
   Process and instrumentation diagram showing vessel with streams, control valves, and instrumentation.
 
-* separator-p&id-description.docx  
+* separator-p&id-description.pdf
   Written explanation of p&id.
 
 ***
