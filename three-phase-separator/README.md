@@ -1,7 +1,7 @@
 # Three-Phase Separator Control System  
 ### PLC Programming & SCADA Demonstration Project  
 
-**[→ Watch the demo video](https://www.youtube.com/watch?v=2MAICU6E-38)**
+**[→ Watch the demo video](https://www.youtube.com/watch?v=VDos5apLgII)**
 
 <p align="center">
   <img src="./screenshots/1-main-view-idle-state.jpg" alt="Separator HMI - main view idle" width="85%" />
