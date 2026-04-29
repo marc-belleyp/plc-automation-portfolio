@@ -68,7 +68,7 @@ Monitors temperature, level, and system conditions. Includes:
 
 Batch validity is determined based on fault occurrence and process conditions.
 
-### Batch History Logging
+### Batch History and Process Trends
 Automatically records completed batch data into a structured database table. Logged data includes batch ID, recipe parameters, process results, duration, temperature metrics, alarm activity, and fault durations.
 
 A snapshot of key values is captured at batch termination, while trend data provides continuous visibility of temperature and level throughout the batch, enabling detailed post-batch analysis.
