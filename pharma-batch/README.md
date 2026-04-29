@@ -97,7 +97,7 @@ A snapshot of key values is captured at batch termination, while trend data prov
 ### /demo
 Contains:
 * youtube-link.txt  
-  YouTube link to project walkthrough video
+  YouTube link to project walkthrough video.
 
 ***
 
