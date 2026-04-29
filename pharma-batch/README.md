@@ -87,7 +87,7 @@ A snapshot of key values is captured at batch termination, while trend data prov
 ### SCADA Implementation (Ignition Maker Edition)
 * HMI visualization
 * Real-time trends and batch monitoring
-* Operator controls (Start / Hold / Resume / Abort / Reset)
+* Operator controls (Start / Hold / Resume / Abort / Release)
 * Manual reimplementation of PLC logic using a Gateway Timer Script
 
 ***
