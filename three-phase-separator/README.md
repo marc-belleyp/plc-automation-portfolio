@@ -4,7 +4,7 @@
 **[→ Watch the demo video](https://www.youtube.com/watch?v=VDos5apLgII)**
 
 <p align="center">
-  <img src="./screenshots/1-main-view-idle-state.jpg" alt="Separator HMI - main view idle" width="85%" />
+  <img src="./screenshots/01-main-view-idle-state.jpg" alt="Separator HMI - main view idle" width="85%" />
   <br><br>
   <em>Idle state. Pressure, levels and valves all at zero.</em>
 </p>
