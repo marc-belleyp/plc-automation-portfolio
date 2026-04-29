@@ -4,7 +4,7 @@
 **[→ Watch the demo video](https://www.youtube.com/watch?v=euDJXR5xoyw)**
 
 <p align="center">
-  <img src="./screenshots/1-main-view-idle-phase.jpg" alt="Pharma batch system HMI - main view idle" width="85%" />
+  <img src="./screenshots/01-main-view-idle-phase.jpg" alt="Pharma batch system HMI - main view idle" width="85%" />
   <br><br>
   <em>Idle state. Vessel empty, clean, and ready for batch start.</em>
 </p>
