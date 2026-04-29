@@ -24,4 +24,4 @@ Implements a full batch process including filling, heating, mixing, draining, CI
 
 Includes fault handling, alarm management, real-time trend monitoring, and batch history logging.
 
-➡ [View project folder](./pharma-batch-mixing-system)
+➡ [View project folder](./pharma-batch)
