@@ -25,6 +25,8 @@ The system performs:
 
 The objective is to execute a complete batch process using structured state-machine logic, while ensuring product quality through strict control of temperature, level, and fault conditions.
 
+The batch sequencing structure is inspired by ISA-88 principles, with clearly defined phases, transitions, and separation between process logic and equipment behavior.
+
 The control logic was developed in Connected Components Workbench (CCW) using Structured Text. The same control logic was then manually implemented inside Ignition Designer using a Gateway Timer Script to simulate PLC–SCADA integration.
 
 No direct PLC communication (e.g., EtherNet/IP or Modbus TCP) was used in this demonstration.
