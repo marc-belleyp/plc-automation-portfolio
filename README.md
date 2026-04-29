@@ -3,7 +3,7 @@
 This repository contains industrial automation projects demonstrating:
 
 • Structured Text state-machine logic  
-• Manual PID implementation with anti-windup  
+• Manual PID implementation
 • SCADA integration (Ignition)  
 • Alarm latching and trip logic  
 • Realistic process simulation  
