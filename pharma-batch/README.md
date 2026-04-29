@@ -148,7 +148,7 @@ Contains visual documentation of:
 
 ✓ **CIP Integration** — Automated cleaning cycle with verification of vessel readiness
 
-✓ **Batch History Logging** — Automatic storage of batch data for traceability and analysis
+✓ **Batch History Logging and Trends** — Automatic storage of batch data and process trends for traceability and analysis
 
 ✓ **Process Simulation** — Realistic testing of batch behavior without hardware
 
