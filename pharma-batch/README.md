@@ -140,17 +140,17 @@ Contains visual documentation of:
 
 ## Design Highlights
 
-✓ State Machine Design — Multi-phase batch sequencing with full lifecycle control
+✓ **State Machine Design** — Multi-phase batch sequencing with full lifecycle control
 
-✓ Batch Validation Logic — Product acceptance based on process conditions and fault history
+✓ **Batch Validation Logic** — Product acceptance based on process conditions and fault history
 
-✓ Fault Handling Strategy — Separation of minor and critical faults with accumulation-based logic
+✓ **Fault Handling Strategy** — Separation of minor and critical faults with accumulation-based logic
 
-✓ CIP Integration — Automated cleaning cycle with verification of vessel readiness
+✓ **CIP Integration** — Automated cleaning cycle with verification of vessel readiness
 
-✓ Batch History Logging — Automatic storage of batch data for traceability and analysis
+✓ **Batch History Logging** — Automatic storage of batch data for traceability and analysis
 
-✓ Process Simulation — Realistic testing of batch behavior without hardware
+✓ **Process Simulation** — Realistic testing of batch behavior without hardware
 
 ***
 
