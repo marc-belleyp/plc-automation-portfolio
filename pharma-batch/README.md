@@ -106,7 +106,7 @@ Contains:
 * pharma-batch-p&id.pdf  
   Process and instrumentation diagram showing vessel, inlets, outlets, and instrumentation.
 
-* pharma-batch-p&id-description.pdf 
+* pharma-batch-p&id-description.pdf  
   Written explanation of p&id.
 
 ***
